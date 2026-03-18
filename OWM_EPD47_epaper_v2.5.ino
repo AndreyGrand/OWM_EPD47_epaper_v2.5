@@ -7,8 +7,8 @@
 #include "freertos/FreeRTOS.h"  // In-built
 #include "freertos/task.h"      // In-built
 #include "epd_driver.h"         // https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
-//#include "esp_adc_cal.h"        // In-built
 
+#include "esp_adc/adc_oneshot.h"
 #include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson
 #include <HTTPClient.h>         // In-built
 
@@ -59,7 +59,7 @@ float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
 long SleepDuration   = 5; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-int  WakeupHour      = 7;  // Don't wakeup until after 07:00 to save battery power
+int  WakeupHour      = 8;  // Don't wakeup until after 07:00 to save battery power
 int  SleepHour       = 23; // Sleep after 23:00 to save battery power
 long StartTime       = 0;
 long SleepTimer      = 0;
@@ -124,40 +124,77 @@ void StopWiFi() {
 void InitialiseSystem() {
   StartTime = millis();
   Serial.begin(115200);
-  // while (!Serial);
   delay(2000);  // важно!
   Serial.println(String(__FILE__) + "\nStarting...");
-  Serial.println("EPD init...");
   epd_init();
-  Serial.println("EPD init done");
   framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
   if (!framebuffer) Serial.println("Memory alloc failed!");
-  memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+  else memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 }
 
 void loop() {
   // Nothing to do here
 }
 
+adc_oneshot_unit_handle_t adc_handle;
+adc_oneshot_chan_cfg_t adc_config;
+void initADC()
+{
+    adc_oneshot_unit_init_cfg_t init_config = {
+        .unit_id = ADC_UNIT_1,
+    };
+
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
+
+    adc_config.bitwidth = ADC_BITWIDTH_DEFAULT;
+    adc_config.atten = ADC_ATTEN_DB_11;  // важно!
+
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(
+        adc_handle,
+        ADC_CHANNEL_3,   // ← ВАЖНО! GPIO14
+        &adc_config
+    ));
+}
+float readBattery()
+{
+    int adc_raw = 0;
+
+    adc_oneshot_read(adc_handle, ADC_CHANNEL_3, &adc_raw);
+
+    float voltage = adc_raw * 3.3 / 4095.0;
+
+    // делитель напряжения на плате
+    voltage *= 4;
+
+    return voltage;
+}
+float readBatteryAvg()
+{
+    int sum = 0;
+
+    for (int i = 0; i < 10; i++) {
+        int val;
+        adc_oneshot_read(adc_handle, ADC_CHANNEL_3, &val);
+        sum += val;
+        delay(5);
+    }
+
+    float adc = sum / 10.0;
+    float voltage = adc * 3.3 / 4095.0;
+    voltage *= 4;
+
+    return voltage;
+}
 void setup() {
   InitialiseSystem();
-  Serial.setDebugOutput(true);
-/*
-          epd_poweron();      // Switch on EPD display
-        delay(0);
-        Serial.println("EPD clear");
-        epd_clear();        // Clear the screen
-        delay(0);
-        Serial.println("EPD power off");
-        epd_poweroff_all(); // Switch off all power to EPD
-*/
+  initADC();
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     bool WakeUp = false;                
     if (WakeupHour > SleepHour)
       WakeUp = (CurrentHour >= WakeupHour || CurrentHour <= SleepHour); 
     else                             
       WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);                              
-    if (true) { //WakeUp == true) { // For testing, set to true to always wakeup and update the display, otherwise only between WakeupHour and SleepHour
+    if (WakeUp) {
       byte Attempts = 1;
       bool RxWeather  = false;
       bool RxForecast = false;
@@ -170,18 +207,10 @@ void setup() {
       Serial.println("Received all weather data...");
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         StopWiFi();         // Reduces power consumption
-        // Serial.println("EPD power on");
         epd_poweron();      // Switch on EPD display
-        // delay(0);
-        // Serial.println("EPD clear");
         epd_clear();        // Clear the screen
-        // delay(0);
-        // Serial.println("Display");
         DisplayWeather();   // Display the weather data
-        delay(0);
         edp_update();       // Update the display to show the information
-        delay(0);
-        // Serial.println("EPD power off");
         epd_poweroff_all(); // Switch off all power to EPD
       }
     }
@@ -214,7 +243,7 @@ bool DecodeWeather(WiFiClient& json, String Type) {
     WxConditions[0].Main0       = root["weather"][0]["main"].as<const char*>();        Serial.println("Main: " + String(WxConditions[0].Main0));
     WxConditions[0].Forecast0   = root["weather"][0]["description"].as<const char*>(); Serial.println("For0: " + String(WxConditions[0].Forecast0));
     //WxConditions[0].Forecast1   = root["weather"][1]["description"].as<const char*>(); Serial.println("For1: " + String(WxConditions[0].Forecast1));
-    //WxConditions[0].Forecast2   = root["weather"][2]["description"].as<char*>(); Serial.println("For2: " + String(WxConditions[0].Forecast2));
+    //WxConditions[0].Forecast2   = root["weather"][2]["description"].as<const char*>(); Serial.println("For2: " + String(WxConditions[0].Forecast2));
     WxConditions[0].Icon        = root["weather"][0]["icon"].as<const char*>();        Serial.println("Icon: " + String(WxConditions[0].Icon));
     WxConditions[0].Temperature = root["main"]["temp"].as<float>();              Serial.println("Temp: " + String(WxConditions[0].Temperature));
     WxConditions[0].Pressure    = root["main"]["pressure"].as<float>();          Serial.println("Pres: " + String(WxConditions[0].Pressure));
@@ -358,7 +387,7 @@ double NormalizedMoonPhase(int d, int m, int y) {
 }
 
 void DisplayWeather() {                          // 4.7" e-paper display is 960x540 resolution
-  DisplayStatusSection(600, 20, wifi_signal);    // Wi-Fi signal strength and Battery voltage
+  DisplayStatusSection(580, 30, wifi_signal);    // Wi-Fi signal strength and Battery voltage
   DisplayGeneralInfoSection();                   // Top line of the display
   DisplayDisplayWindSection(137, 150, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
   DisplayAstronomySection(5, 255);               // Astronomy section Sun rise/set, Moon phase and Moon icon
@@ -368,10 +397,10 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
 }
 
 void DisplayGeneralInfoSection() {
-  setFont(OpenSans10B);
-  drawString(10, 12, CityUA, LEFT);
-  setFont(OpenSans10B);
-  drawString(500, 12, Date_str + "  @   " + Time_str, LEFT);
+  setFont(OpenSans18B);
+  drawString(5, 5, City, LEFT);
+  //setFont(OpenSans18B);
+  drawString(200, 5, Date_str + "  @   " + Time_str, LEFT);
 }
 
 void DisplayWeatherIcon(int x, int y) {
@@ -418,7 +447,7 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
   setFont(OpenSans24B);
   drawString(x + 3, y - 18, String(windspeed, 1), CENTER);
   setFont(OpenSans12B);
-  drawString(x, y + 25, (Units == "M" ? "м/с" : "м/год"), CENTER);
+  drawString(x, y + 25, (Units == "M" ? "м/с" : "mph"), CENTER);
 }
 
 String WindDegToOrdinalDirection(float winddirection) {
@@ -494,13 +523,13 @@ void DisplayForecastWeather(int x, int y, int index) {
 void DisplayAstronomySection(int x, int y) {
   setFont(OpenSans10B);
   drawString(x + 5, y + 30, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 5, y + 50, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5) + " " + TXT_SUNSET, LEFT);
+  drawString(x + 5, y + 55, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5) + " " + TXT_SUNSET, LEFT);
   time_t now = time(NULL);
   struct tm * now_utc  = gmtime(&now);
   const int day_utc    = now_utc->tm_mday;
   const int month_utc  = now_utc->tm_mon + 1;
   const int year_utc   = now_utc->tm_year + 1900;
-  drawString(x + 5, y + 70, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
+  drawString(x + 5, y + 80, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
   DrawMoon(x + 160, y - 15, day_utc, month_utc, year_utc, Hemisphere);
 }
 
@@ -635,7 +664,7 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 }
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
-  drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "гПа" : "in"), LEFT);
+  drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "hPa" : "in"), LEFT);
   if      (slope == "+") {
     DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
     DrawSegment(x - 1, y, 0, 0, 8, -8, 8, -8, 16, 0);
@@ -651,8 +680,8 @@ void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
 }
 
 void DisplayStatusSection(int x, int y, int rssi) {
-  setFont(OpenSans8B);
-  DrawRSSI(x + 305, y + 15, rssi);
+  setFont(OpenSans12B);
+  DrawRSSI(x + 335, y + 15, rssi);
   DrawBattery(x + 150, y);
 }
 
@@ -700,13 +729,8 @@ boolean UpdateLocalTime() {
 
 void DrawBattery(int x, int y) {
   uint8_t percentage = 100;
-  // esp_adc_cal_characteristics_t adc_chars;
-  // esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc_chars);
-  // if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-    // Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
-  //   vref = adc_chars.vref;
-  // }
-  float voltage = 100; // analogRead(36) / 4096.0 * 6.566 * (vref / 1000.0);
+  float voltage = readBattery();
+  // float voltage = analogRead(14) / 4096.0 * 6.566 * (vref / 1000.0);
   if (voltage > 1 ) { // Only display if there is a valid reading
     Serial.println("\nVoltage = " + String(voltage));
     percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
@@ -1050,10 +1074,11 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
 }
 
 void drawString(int x, int y, String text, alignment align) {
-  char * data  = const_cast<char*>(text.c_str());
-  // int  x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
-  // int w, h;
-  // int xx = x, yy = y;
+  if (text.length() == 0) return;
+  if (x < 0 || x > EPD_WIDTH) return;
+  if (y < 0 || y > EPD_HEIGHT) return;
+  //char * data  = const_cast<char*>(text.c_str());
+  const char * data = text.c_str();
   int32_t xx, yy, x1, y1, w, h;
   int32_t cursor_x, cursor_y;
   get_text_bounds(&currentFont, data, &xx, &yy, &x1, &y1, &w, &h, NULL);
@@ -1061,6 +1086,8 @@ void drawString(int x, int y, String text, alignment align) {
   if (align == CENTER) x = x - w / 2;
   cursor_x = x;
   cursor_y = y + h;
+  if (cursor_x < 0 || cursor_x + w > EPD_WIDTH) return;
+  if (cursor_y < 0 || cursor_y + h > EPD_HEIGHT) return;
   write_string(&currentFont, data, &cursor_x, &cursor_y, framebuffer);
 }
 
