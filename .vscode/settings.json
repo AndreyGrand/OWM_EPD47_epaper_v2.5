@@ -1,0 +1,16 @@
+{
+    "arduino.useArduinoCli": true,
+    "arduino.logLevel": "info",
+    "arduino.path": "C:\\Program Files\\Arduino IDE",
+    "arduino.allowPDEFiletype": false,
+    "arduino.enableUSBDetection": true,
+    "arduino.disableTestingOpen": false,
+    "arduino.skipHeaderProvider": false,
+    "arduino.disableIntelliSenseAutoGen": true,
+    "arduino.analyzeOnSettingChange": true,
+    "arduino.analyzeOnOpen": true,
+    "arduino.additionalUrls": [
+        "https://raw.githubusercontent.com/VSChina/azureiotdevkit_tools/master/package_azureboard_index.json",
+        "http://arduino.esp8266.com/stable/package_esp8266com_index.json"
+    ],
+}
