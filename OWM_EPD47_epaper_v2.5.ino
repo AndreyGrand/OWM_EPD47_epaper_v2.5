@@ -261,30 +261,32 @@ bool DecodeWeather(WiFiClient& json, String Type) {
     WxConditions[0].Sunset      = root["sys"]["sunset"].as<int>();               Serial.println("SSet: " + String(WxConditions[0].Sunset));
     WxConditions[0].Timezone    = root["timezone"].as<int>();                    Serial.println("TZon: " + String(WxConditions[0].Timezone));
   }
+  
   if (Type == "forecast") {
     //Serial.println(json);
-    Serial.print(F("\nReceiving Forecast period - ")); //------------------------------------------------
+    // Serial.print(F("\nReceiving Forecast period - ")); //------------------------------------------------
     JsonArray list                  = root["list"];
     for (byte r = 0; r < max_readings; r++) {
-      Serial.println("\nPeriod-" + String(r) + "--------------");
+      // Serial.println("\nPeriod-" + String(r) + "--------------");
       WxForecast[r].Dt                = list[r]["dt"].as<int>();
-      WxForecast[r].Temperature       = list[r]["main"]["temp"].as<float>();              Serial.println("Temp: " + String(WxForecast[r].Temperature));
-      WxForecast[r].Low               = list[r]["main"]["temp_min"].as<float>();          Serial.println("TLow: " + String(WxForecast[r].Low));
-      WxForecast[r].High              = list[r]["main"]["temp_max"].as<float>();          Serial.println("THig: " + String(WxForecast[r].High));
-      WxForecast[r].Pressure          = list[r]["main"]["pressure"].as<float>();          Serial.println("Pres: " + String(WxForecast[r].Pressure));
-      WxForecast[r].Humidity          = list[r]["main"]["humidity"].as<float>();          Serial.println("Humi: " + String(WxForecast[r].Humidity));
+      WxForecast[r].Temperature       = list[r]["main"]["temp"].as<float>();              //Serial.println("Temp: " + String(WxForecast[r].Temperature));
+      WxForecast[r].Low               = list[r]["main"]["temp_min"].as<float>();          //Serial.println("TLow: " + String(WxForecast[r].Low));
+      WxForecast[r].High              = list[r]["main"]["temp_max"].as<float>();          //Serial.println("THig: " + String(WxForecast[r].High));
+      WxForecast[r].Pressure          = list[r]["main"]["pressure"].as<float>();          //Serial.println("Pres: " + String(WxForecast[r].Pressure));
+      WxForecast[r].Humidity          = list[r]["main"]["humidity"].as<float>();          //Serial.println("Humi: " + String(WxForecast[r].Humidity));
       //WxForecast[r].Forecast0         = list[r]["weather"][0]["main"].as<char*>();        Serial.println("For0: " + String(WxForecast[r].Forecast0));
       //WxForecast[r].Forecast1         = list[r]["weather"][1]["main"].as<char*>();        Serial.println("For1: " + String(WxForecast[r].Forecast1));
       //WxForecast[r].Forecast2         = list[r]["weather"][2]["main"].as<char*>();        Serial.println("For2: " + String(WxForecast[r].Forecast2));
-      WxForecast[r].Icon              = list[r]["weather"][0]["icon"].as<const char*>();        Serial.println("Icon: " + String(WxForecast[r].Icon));
+      WxForecast[r].Icon              = list[r]["weather"][0]["icon"].as<const char*>();    //    Serial.println("Icon: " + String(WxForecast[r].Icon));
       //WxForecast[r].Description       = list[r]["weather"][0]["description"].as<char*>(); Serial.println("Desc: " + String(WxForecast[r].Description));
       //WxForecast[r].Cloudcover        = list[r]["clouds"]["all"].as<int>();               Serial.println("CCov: " + String(WxForecast[r].Cloudcover)); // in % of cloud cover
       //WxForecast[r].Windspeed         = list[r]["wind"]["speed"].as<float>();             Serial.println("WSpd: " + String(WxForecast[r].Windspeed));
       //WxForecast[r].Winddir           = list[r]["wind"]["deg"].as<float>();               Serial.println("WDir: " + String(WxForecast[r].Winddir));
-      WxForecast[r].Rainfall          = list[r]["rain"]["3h"].as<float>();                Serial.println("Rain: " + String(WxForecast[r].Rainfall));
-      WxForecast[r].Snowfall          = list[r]["snow"]["3h"].as<float>();                Serial.println("Snow: " + String(WxForecast[r].Snowfall));
-      WxForecast[r].Period            = list[r]["dt_txt"].as<const char*>();                    Serial.println("Peri: " + String(WxForecast[r].Period));
+      WxForecast[r].Rainfall          = list[r]["rain"]["3h"].as<float>();                //Serial.println("Rain: " + String(WxForecast[r].Rainfall));
+      WxForecast[r].Snowfall          = list[r]["snow"]["3h"].as<float>();                //Serial.println("Snow: " + String(WxForecast[r].Snowfall));
+      WxForecast[r].Period            = list[r]["dt_txt"].as<const char*>();              //      Serial.println("Peri: " + String(WxForecast[r].Period));
     }
+    
     //------------------------------------------
     float pressure_trend = WxForecast[0].Pressure - WxForecast[2].Pressure; // Measure pressure slope between ~now and later
     pressure_trend = ((int)(pressure_trend * 10)) / 10.0; // Remove any small variations less than 0.1
@@ -443,10 +445,13 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
   drawString(x + Cradius + 10, y - 5, TXT_E, CENTER);
   drawString(x + 3, y + 50, String(angle, 0) + "°", CENTER);
   setFont(OpenSans12B);
+  Serial.print(WindDegToOrdinalDirection(angle)+ " ");
   drawString(x, y - 50, WindDegToOrdinalDirection(angle), CENTER);
   setFont(OpenSans24B);
+  Serial.print(String(windspeed, 1)+ " ");
   drawString(x + 3, y - 18, String(windspeed, 1), CENTER);
   setFont(OpenSans12B);
+  Serial.println("м/с");
   drawString(x, y + 25, (Units == "M" ? "м/с" : "mph"), CENTER);
 }
 
@@ -493,21 +498,29 @@ void DisplayForecastTextSection(int x, int y) {
     p++;
     charCount++;
   }
-  if (WxForecast[0].Rainfall > 0) Wx_Description += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
+  if (WxForecast[0].Rainfall > 0) Wx_Description += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "мм" : "in")) + ")";
   //Wx_Description = wordWrap(Wx_Description, lineWidth);
   String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
   String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
+  Serial.print("Line1: "); Serial.println(Line1);
   drawString(x + 30, y + 5, TitleCase(Line1), LEFT);
-  if (Line1 != Line2) drawString(x + 30, y + 30, Line2, LEFT);
+  if (Line1 != Line2) {
+    Serial.print("Line2: "); Serial.println(Line2);
+    drawString(x + 30, y + 30, Line2, LEFT);
+    }
 }
 
 void DisplayPressureSection(int x, int y, float pressure, String slope) {
   setFont(OpenSans12B);
+  Serial.print(pressure); Serial.println(" " + slope);
   DrawPressureAndTrend(x - 25, y + 10, pressure, slope);
+
   if (WxConditions[0].Visibility > 0) {
+    Serial.println("Visibility " + WxConditions[0].Visibility);
     Visibility(x + 145, y, String(WxConditions[0].Visibility) + "M");
     x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
   }
+  Serial.println("Cloud cover: " + String( WxConditions[0].Cloudcover));
   if (WxConditions[0].Cloudcover > 0) CloudCover(x + 145, y, WxConditions[0].Cloudcover);
 }
 
@@ -529,6 +542,7 @@ void DisplayAstronomySection(int x, int y) {
   const int day_utc    = now_utc->tm_mday;
   const int month_utc  = now_utc->tm_mon + 1;
   const int year_utc   = now_utc->tm_year + 1900;
+  Serial.print("Moon: "); Serial.println(MoonPhase(day_utc, month_utc, year_utc, Hemisphere));
   drawString(x + 5, y + 80, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
   DrawMoon(x + 160, y - 15, day_utc, month_utc, year_utc, Hemisphere);
 }
@@ -628,7 +642,7 @@ void DisplayForecastSection(int x, int y) {
 }
 
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
-  Serial.println("Icon name: " + IconName);
+  // Serial.println("Icon name: " + IconName);
   if      (IconName == "01d" || IconName == "01n")  Sunny(x, y, IconSize, IconName);
   else if (IconName == "02d" || IconName == "02n")  MostlySunny(x, y, IconSize, IconName);
   else if (IconName == "03d" || IconName == "03n")  Cloudy(x, y, IconSize, IconName);
@@ -699,12 +713,24 @@ void DrawRSSI(int x, int y, int rssi) {
   }
 }
 
+time_t savedEpoch;
+unsigned long savedMillis = 0;
+
 boolean UpdateLocalTime() {
   struct tm timeinfo;
   char   time_output[30], day_output[30], update_time[30];
+  boolean synced = false;
   while (!getLocalTime(&timeinfo, 5000)) { // Wait for 5-sec for time to synchronise
     Serial.println("Failed to obtain time");
-    return false;
+    synced = false;
+  }
+  if(synced){
+    savedEpoch = time(nullptr);
+    savedMillis = millis();
+  }
+  else if(savedMillis > 0) {
+    time_t now = savedEpoch + (millis() - savedMillis) / 1000;
+    localtime_r(&now, &timeinfo);
   }
   CurrentHour = timeinfo.tm_hour;
   CurrentMin  = timeinfo.tm_min;
@@ -729,7 +755,7 @@ boolean UpdateLocalTime() {
 
 void DrawBattery(int x, int y) {
   uint8_t percentage = 100;
-  float voltage = readBattery();
+  float voltage = readBatteryAvg();
   // float voltage = analogRead(14) / 4096.0 * 6.566 * (vref / 1000.0);
   if (voltage > 1 ) { // Only display if there is a valid reading
     Serial.println("\nVoltage = " + String(voltage));

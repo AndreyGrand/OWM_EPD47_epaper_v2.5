@@ -33,12 +33,12 @@ const String TXT_SUNRISE  = "Восход";
 const String TXT_SUNSET   = "Закат";
 
 //Moon
-const String TXT_MOON_NEW             = "Новый";
-const String TXT_MOON_WAXING_CRESCENT = "Растущий";
+const String TXT_MOON_NEW             = "Новая";
+const String TXT_MOON_WAXING_CRESCENT = "Растущая";
 const String TXT_MOON_FIRST_QUARTER   = "Первая четверть";
-const String TXT_MOON_WAXING_GIBBOUS  = "Растущий выпуклый";
+const String TXT_MOON_WAXING_GIBBOUS  = "Растущая выпуклая";
 const String TXT_MOON_FULL            = "Полнолуние";
-const String TXT_MOON_WANING_GIBBOUS  = "Убывающий";
+const String TXT_MOON_WANING_GIBBOUS  = "Убывающая";
 const String TXT_MOON_THIRD_QUARTER   = "Третья четверть";
 const String TXT_MOON_WANING_CRESCENT = "Убывающий полумес";
 
