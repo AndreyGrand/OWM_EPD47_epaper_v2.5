@@ -15,7 +15,6 @@
 #include <WiFi.h>               // In-built
 #include <SPI.h>                // In-built
 #include <time.h>               // In-built
-#include <EEPROM.h>
 
 #include "owm_credentials.h"
 #include "forecast_record.h"
@@ -59,7 +58,7 @@ float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-long SleepDuration   = 5; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
+long SleepDuration   = 60*3; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupHour      = 7;  // Don't wakeup until after 07:00 to save battery power
 int  SleepHour       = 23; // Sleep after 23:00 to save battery power
 long StartTime       = 0;
@@ -186,10 +185,6 @@ float readBatteryAvg()
 
     return voltage;
 }
-#define PART_X 0
-#define PART_Y 0     //520 например нижняя часть экрана
-#define PART_W 960
-#define PART_H 40
 
 String getBatteryString()
 {
@@ -245,39 +240,16 @@ void updateTimeZone()
   Serial.println("updateTimeZone done");
 
 }
-#define COUNTER_ADDR 0   // адрес в EEPROM для счётчика
-// EEPROMStorage<uint8_t> v1(0, 0);
-int getCounter(){
-  // Читаем счётчик
-  int counter = EEPROM.read(COUNTER_ADDR);
-  Serial.printf("Counter before: %d\n", counter);
-
-  // Увеличиваем
-  counter++;
-
-  // Пишем обратно
-  EEPROM.write(COUNTER_ADDR, counter);
-  EEPROM.commit();  // реально сохранить во флеш
-  // v1 ++;
-  return counter;
-}
 
 void setup() {
   InitialiseSystem();
   initADC();
-  EEPROM.begin(512); // любое удобное значение
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     bool WakeUp = false;                
     if (WakeupHour > SleepHour)
       WakeUp = (CurrentHour >= WakeupHour || CurrentHour <= SleepHour); 
     else                             
       WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);   
-    int cnt = getCounter();
-    Serial.println("Couner: " + String(cnt));
-    if(cnt % 2 == 0){
-      WakeUp = false;
-      updateTimeZone(); // Update the time zone for the display of sunrise/sunset times, so that they are correct for the location of the user  
-    }
     if (WakeUp) {
       byte Attempts = 1;
       bool RxWeather  = false;
