@@ -15,6 +15,7 @@
 #include <WiFi.h>               // In-built
 #include <SPI.h>                // In-built
 #include <time.h>               // In-built
+#include <EEPROM.h>
 
 #include "owm_credentials.h"
 #include "forecast_record.h"
@@ -59,7 +60,7 @@ float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
 long SleepDuration   = 5; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-int  WakeupHour      = 8;  // Don't wakeup until after 07:00 to save battery power
+int  WakeupHour      = 7;  // Don't wakeup until after 07:00 to save battery power
 int  SleepHour       = 23; // Sleep after 23:00 to save battery power
 long StartTime       = 0;
 long SleepTimer      = 0;
@@ -164,7 +165,7 @@ float readBattery()
     float voltage = adc_raw * 3.3 / 4095.0;
 
     // делитель напряжения на плате
-    voltage *= 4;
+    voltage *= 6;
 
     return voltage;
 }
@@ -185,15 +186,98 @@ float readBatteryAvg()
 
     return voltage;
 }
+#define PART_X 0
+#define PART_Y 0     //520 например нижняя часть экрана
+#define PART_W 960
+#define PART_H 40
+
+String getBatteryString()
+{
+    float v = readBattery();
+    return String(v, 2) + "V";
+}
+
+// ---------- Drawing helpers ----------
+void drawTextInArea(const Rect_t& area, const char* text) {
+  int32_t cursor_x = area.x;
+  int32_t cursor_y = area.y + currentFont.advance_y + currentFont.descender;
+
+  // Clear only this area (partial refresh)
+  epd_clear_area(area);
+
+  // Draw using the same font + function the example uses
+  writeln((GFXfont *)&currentFont, text, &cursor_x, &cursor_y, NULL);
+}
+
+void updateTimeZone()
+{
+  Serial.println("updateTimeZone ...");
+  int x = 200, y = 5;
+    Rect_t area = {
+        .x = 553,
+        .y = 3,
+        .width = x,
+        .height = y + 35
+    };
+  // setFont(OpenSans18B);
+  // drawString(200, 5, Date_str + "  @   " + Time_str, LEFT);
+    epd_poweron();
+    // set date and time
+    setFont(OpenSans18B);
+    String str = Time_str;
+    drawTextInArea(area, str.c_str());
+    // set Temperature 320, 110 - 40 
+    WiFiClient client;   // wifi client object
+    obtainWeatherData(client, "weather");
+    int x_temp = 290, y_temp = 60;
+    Rect_t area_temp = {
+      .x = x_temp,
+      .y = y_temp,
+      .width = x_temp + 20,
+      .height = y_temp - 20
+  };
+  setFont(OpenSans18B);
+  String temper =  String(WxConditions[0].Temperature, 1) + "°    " + String(WxConditions[0].Humidity, 0) + "%";
+	drawTextInArea(area_temp, temper.c_str());
+	  // setFont(OpenSans12B);
+	  // drawString(x + 10, y + 35, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low
+  epd_poweroff();
+  Serial.println("updateTimeZone done");
+
+}
+#define COUNTER_ADDR 0   // адрес в EEPROM для счётчика
+// EEPROMStorage<uint8_t> v1(0, 0);
+int getCounter(){
+  // Читаем счётчик
+  int counter = EEPROM.read(COUNTER_ADDR);
+  Serial.printf("Counter before: %d\n", counter);
+
+  // Увеличиваем
+  counter++;
+
+  // Пишем обратно
+  EEPROM.write(COUNTER_ADDR, counter);
+  EEPROM.commit();  // реально сохранить во флеш
+  // v1 ++;
+  return counter;
+}
+
 void setup() {
   InitialiseSystem();
   initADC();
+  EEPROM.begin(512); // любое удобное значение
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     bool WakeUp = false;                
     if (WakeupHour > SleepHour)
       WakeUp = (CurrentHour >= WakeupHour || CurrentHour <= SleepHour); 
     else                             
-      WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);                              
+      WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);   
+    int cnt = getCounter();
+    Serial.println("Couner: " + String(cnt));
+    if(cnt % 2 == 0){
+      WakeUp = false;
+      updateTimeZone(); // Update the time zone for the display of sunrise/sunset times, so that they are correct for the location of the user  
+    }
     if (WakeUp) {
       byte Attempts = 1;
       bool RxWeather  = false;
@@ -389,19 +473,19 @@ double NormalizedMoonPhase(int d, int m, int y) {
 }
 
 void DisplayWeather() {                          // 4.7" e-paper display is 960x540 resolution
-  DisplayStatusSection(580, 30, wifi_signal);    // Wi-Fi signal strength and Battery voltage
-  DisplayGeneralInfoSection();                   // Top line of the display
   DisplayDisplayWindSection(137, 150, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
   DisplayAstronomySection(5, 255);               // Astronomy section Sun rise/set, Moon phase and Moon icon
   DisplayMainWeatherSection(320, 110);           // Centre section of display for Location, temperature, Weather report, current Wx Symbol
   DisplayWeatherIcon(810, 130);                  // Display weather icon    scale = Large;
   DisplayForecastSection(320, 220);              // 3hr forecast boxes
+  DisplayStatusSection(580, 30, wifi_signal);    // Wi-Fi signal strength and Battery voltage
+  DisplayGeneralInfoSection();                   // Top line of the display
 }
 
 void DisplayGeneralInfoSection() {
+  setFont(OpenSans12B);
+  drawString(10, 5, "Н.Новгород", LEFT);
   setFont(OpenSans18B);
-  drawString(5, 5, City, LEFT);
-  //setFont(OpenSans18B);
   drawString(200, 5, Date_str + "  @   " + Time_str, LEFT);
 }
 
@@ -713,15 +797,17 @@ void DrawRSSI(int x, int y, int rssi) {
   }
 }
 
-time_t savedEpoch;
-unsigned long savedMillis = 0;
+RTC_DATA_ATTR time_t savedEpoch;
+RTC_DATA_ATTR unsigned long savedMillis = 0;
 
 boolean UpdateLocalTime() {
   struct tm timeinfo;
   char   time_output[30], day_output[30], update_time[30];
   boolean synced = false;
-  while (!getLocalTime(&timeinfo, 5000)) { // Wait for 5-sec for time to synchronise
+  int counter = 0;
+  while (!getLocalTime(&timeinfo, 5000) && counter < 5) { // Wait for 5-sec for time to synchronise
     Serial.println("Failed to obtain time");
+    counter ++;
     synced = false;
   }
   if(synced){
@@ -730,6 +816,18 @@ boolean UpdateLocalTime() {
   }
   else if(savedMillis > 0) {
     time_t now = savedEpoch + (millis() - savedMillis) / 1000;
+    localtime_r(&now, &timeinfo);
+    Serial.printf("Time: %02d:%02d:%02d\n",
+        timeinfo.tm_hour,
+        timeinfo.tm_min,
+        timeinfo.tm_sec
+    );
+  }
+  else {
+    savedEpoch = time(nullptr);
+    savedMillis = millis();
+    Serial.println("empty time");
+    time_t now = time(NULL);
     localtime_r(&now, &timeinfo);
   }
   CurrentHour = timeinfo.tm_hour;
@@ -750,12 +848,13 @@ boolean UpdateLocalTime() {
   }
   Date_str = day_output;
   Time_str = time_output;
+  Serial.printf("Set date to: %s set time to: %s \n", day_output, Time_str);
   return true;
 }
 
 void DrawBattery(int x, int y) {
   uint8_t percentage = 100;
-  float voltage = readBatteryAvg();
+  float voltage = readBattery();
   // float voltage = analogRead(14) / 4096.0 * 6.566 * (vref / 1000.0);
   if (voltage > 1 ) { // Only display if there is a valid reading
     Serial.println("\nVoltage = " + String(voltage));
@@ -1111,7 +1210,7 @@ void drawString(int x, int y, String text, alignment align) {
   if (align == RIGHT)  x = x - w;
   if (align == CENTER) x = x - w / 2;
   cursor_x = x;
-  cursor_y = y + h;
+  cursor_y = y + h - 2;
   if (cursor_x < 0 || cursor_x + w > EPD_WIDTH) return;
   if (cursor_y < 0 || cursor_y + h > EPD_HEIGHT) return;
   write_string(&currentFont, data, &cursor_x, &cursor_y, framebuffer);
