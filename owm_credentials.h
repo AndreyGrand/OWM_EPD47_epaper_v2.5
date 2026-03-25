@@ -1,11 +1,11 @@
 const bool DebugDisplayUpdate = false;
 
 // Change to your WiFi credentials
-const char* ssid     = "Room63";
-const char* password = "!2019Inet63";
+const char* ssid     = "xxxx";
+const char* password = "xxxxx";
 
 // Use your own API key by signing up for a free developer account at https://openweathermap.org/
-String apikey       = "3f0a7a938aa73a2c586f922a7e306dd9";                      // See: https://openweathermap.org/
+String apikey       = "xxxx";                      // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
 //http://api.openweathermap.org/data/2.5/forecast?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=40
 //http://api.openweathermap.org/data/2.5/weather?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=1
